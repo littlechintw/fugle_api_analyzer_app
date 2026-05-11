@@ -35,6 +35,7 @@ dependencies:
   web_socket_channel: ^2.4.5
   local_auth: ^2.3.0
   flutter_local_notifications: ^17.2.4
+  workmanager: ^0.9.0+3
 
 dev_dependencies:
   flutter_test:
