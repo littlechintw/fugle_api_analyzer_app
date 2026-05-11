@@ -1,0 +1,40 @@
+name: fugle_api_app
+description: 股市技術分析 - Fugle API 整合的 Android 技術分析 App
+publish_to: 'none'
+version: 0.1.0+1
+
+environment:
+  sdk: ">=3.5.0 <4.0.0"
+  flutter: ">=3.27.0"
+
+dependencies:
+  flutter:
+    sdk: flutter
+  cupertino_icons: ^1.0.6
+
+  # 狀態管理
+  flutter_riverpod: ^2.5.1
+
+  # 網路
+  dio: ^5.4.3+1
+
+  # 本地儲存
+  hive: ^2.2.3
+  hive_flutter: ^1.1.0
+  flutter_secure_storage: ^9.0.0
+  path_provider: ^2.1.3
+
+  # 圖表
+  fl_chart: ^0.68.0
+
+  # 工具
+  intl: ^0.19.0
+  collection: ^1.18.0
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^4.0.0
+
+flutter:
+  uses-material-design: true
