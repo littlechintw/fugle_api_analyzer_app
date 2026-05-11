@@ -15,11 +15,15 @@ class KLineChart extends StatefulWidget {
   final double height;
   final void Function(int? index)? onHover;
 
+  /// 大盤指數對比 K (若提供，會疊加標準化後的折線)
+  final List<Candle>? indexCandles;
+
   const KLineChart({
     super.key,
     required this.candles,
     this.onHover,
     this.height = 300,
+    this.indexCandles,
   });
 
   static const _maPeriods = [5, 10, 20, 60];
@@ -37,6 +41,31 @@ class KLineChart extends StatefulWidget {
 class _KLineChartState extends State<KLineChart> {
   int? _crosshairIndex;
   bool _showBollinger = false;
+
+  /// 把指數 K 標準化到「個股第一根 close × 指數相對變化」，
+  /// 視覺上等同「同期買入指數的價格走勢」
+  List<FlSpot> _indexSpots() {
+    final idx = widget.indexCandles;
+    if (idx == null || idx.isEmpty || widget.candles.isEmpty) {
+      return const [];
+    }
+    final base = widget.candles.first.close;
+    final idxBase = idx.first.close;
+    if (idxBase <= 0) return const [];
+    final byDate = <String, double>{
+      for (final c in idx)
+        '${c.date.year}-${c.date.month}-${c.date.day}': c.close
+    };
+    final spots = <FlSpot>[];
+    for (var i = 0; i < widget.candles.length; i++) {
+      final c = widget.candles[i];
+      final key = '${c.date.year}-${c.date.month}-${c.date.day}';
+      final v = byDate[key];
+      if (v == null) continue;
+      spots.add(FlSpot(i.toDouble(), base * v / idxBase));
+    }
+    return spots;
+  }
 
   static const double _leftReserved = 48;
 
@@ -205,6 +234,15 @@ class _KLineChartState extends State<KLineChart> {
                                 dotData: const FlDotData(show: false),
                               ),
                             ],
+                            if (widget.indexCandles != null)
+                              LineChartBarData(
+                                spots: _indexSpots(),
+                                isCurved: false,
+                                color: const Color(0xFF8E9DFF),
+                                barWidth: 1.2,
+                                dashArray: [4, 2],
+                                dotData: const FlDotData(show: false),
+                              ),
                           ],
                           lineTouchData: const LineTouchData(enabled: false),
                         ),
