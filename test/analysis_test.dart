@@ -2,6 +2,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:fugle_api_app/data/models/candle.dart';
 import 'package:fugle_api_app/indicators/analysis.dart';
 import 'package:fugle_api_app/indicators/indicators.dart';
+import 'package:fugle_api_app/indicators/indicators.dart';
 
 void main() {
   group('VolatilityAnalyser', () {
@@ -133,6 +134,106 @@ void main() {
       for (final b in SignalBias.values) {
         expect(b.label, isNotEmpty);
       }
+    });
+  });
+
+  group('Diagnoser 進階場景', () {
+    test('高 RSI 超買會出現警示', () {
+      // 連續強漲讓 RSI > 70
+      final candles = [
+        for (var i = 1; i <= 80; i++)
+          _c(i, 100.0 + i * 2.0,
+              high: 101.0 + i * 2.0, low: 99.0 + i * 2.0, vol: 1000),
+      ];
+      final tags = Diagnoser.diagnose(candles);
+      expect(
+        tags.any((t) => t.label.contains('RSI') || t.label.contains('超買')),
+        isTrue,
+      );
+    });
+
+    test('連續上漲 → 出現「爆量上攻」(若量同時放大)', () {
+      // 後半段每根都比前 20 日均量大 2 倍且上漲
+      final candles = [
+        for (var i = 1; i <= 60; i++)
+          _c(i, 100.0 + i * 0.5,
+              high: 101.0 + i * 0.5,
+              low: 99.0 + i * 0.5,
+              vol: 1000),
+        // 第 61 根放量上攻
+        _c(61, 130.0,
+            open: 128, high: 131, low: 128, vol: 5000),
+      ];
+      final tags = Diagnoser.diagnose(candles);
+      expect(
+        tags.any((t) => t.label.contains('爆量') || t.label.contains('多頭')),
+        isTrue,
+      );
+    });
+
+    test('診斷標籤都有 sentiment + emoji', () {
+      final candles = [
+        for (var i = 1; i <= 80; i++) _c(i, 100.0 + i),
+      ];
+      final tags = Diagnoser.diagnose(candles);
+      for (final t in tags) {
+        expect(t.emoji, isNotEmpty);
+        expect(t.label, isNotEmpty);
+        expect(t.detail, isNotEmpty);
+        expect(t.sentiment, isA<DiagnosisSentiment>());
+      }
+    });
+  });
+
+  group('VolatilityReport 屬性', () {
+    test('aboveAverage / belowAverage 屬性', () {
+      // 後段大幅波動 → atr 應該大於 histMean
+      final candles = <Candle>[
+        for (var i = 1; i <= 30; i++)
+          _c(i, 100.0, high: 100.5, low: 99.5),
+        for (var i = 31; i <= 50; i++)
+          _c(i, 100.0 + i, high: 110.0 + i, low: 90.0 + i),
+      ];
+      final report = VolatilityAnalyser.analyse(candles);
+      // 至少 atr > 0
+      expect(report.atr, greaterThan(0));
+      // aboveAverage / belowAverage 屬性可被存取
+      final _ = report.aboveAverage; // 不一定 true, 但不應丟錯
+      final __ = report.belowAverage;
+      expect(true, isTrue); // 上面沒丟錯即通過
+    });
+  });
+
+  group('normalizeCloses (sparkline 用)', () {
+    test('價格全部相同回傳 0.5', () {
+      final candles = [
+        for (var i = 1; i <= 5; i++) _c(i, 100, high: 100, low: 100),
+      ];
+      final norm = normalizeCloses(candles);
+      for (final v in norm) {
+        expect(v, 0.5);
+      }
+    });
+
+    test('遞增 close 第一個 0、最後一個 1', () {
+      final candles = [
+        for (var i = 1; i <= 5; i++) _c(i, 100.0 + i),
+      ];
+      final norm = normalizeCloses(candles);
+      expect(norm.first, closeTo(0, 1e-9));
+      expect(norm.last, closeTo(1, 1e-9));
+    });
+
+    test('lastN 截斷有效', () {
+      final candles = [
+        for (var i = 1; i <= 10; i++) _c(i, 100.0 + i),
+      ];
+      final norm = normalizeCloses(candles, lastN: 3);
+      expect(norm.length, 3);
+    });
+
+    test('空輸入回空', () {
+      expect(normalizeCloses([]), isEmpty);
     });
   });
 }

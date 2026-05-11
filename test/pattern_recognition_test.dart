@@ -121,5 +121,84 @@ void main() {
         expect(p.name, isNotEmpty);
       }
     });
+
+    test('鎚子線 (下跌中下影線)', () {
+      // 前面下跌，最後一根長下影線 + 小實體 + 短上影線
+      final candles = [
+        for (var i = 1; i <= 28; i++) _c(i, close: 100.0 - i * 0.3),
+        // 實體小 (open=70, close=70.2)，下影線長 (low=66)，上影線短 (high=70.5)
+        _c(29, open: 70, close: 70.2, high: 70.5, low: 66),
+      ];
+      final r = PatternRecognition.detect(candles);
+      expect(_has(r, '鎚子'), isTrue);
+    });
+
+    test('吊人線 (上漲中下影線)', () {
+      final candles = [
+        for (var i = 1; i <= 28; i++) _c(i, close: 100.0 + i * 0.3),
+        _c(29, open: 108, close: 108.2, high: 108.5, low: 104),
+      ];
+      final r = PatternRecognition.detect(candles);
+      expect(_has(r, '吊人'), isTrue);
+    });
+
+    test('流星線 (上漲中上影線)', () {
+      final candles = [
+        for (var i = 1; i <= 28; i++) _c(i, close: 100.0 + i * 0.3),
+        _c(29, open: 108, close: 107.8, high: 112, low: 107.5),
+      ];
+      final r = PatternRecognition.detect(candles);
+      expect(_has(r, '流星'), isTrue);
+    });
+
+    test('倒鎚 (下跌中上影線)', () {
+      final candles = [
+        for (var i = 1; i <= 28; i++) _c(i, close: 100.0 - i * 0.3),
+        _c(29, open: 70, close: 69.8, high: 74, low: 69.5),
+      ];
+      final r = PatternRecognition.detect(candles);
+      expect(_has(r, '倒鎚'), isTrue);
+    });
+
+    test('向下跳空', () {
+      final candles = [
+        for (var i = 1; i <= 28; i++)
+          _c(i, high: 100, low: 99, close: 99.5),
+        _c(29, open: 100, high: 100, low: 99, close: 99.5),
+        // 今天 high 95 < 昨天 low 99 → 向下跳空
+        _c(30, open: 94, high: 95, low: 92, close: 93),
+      ];
+      final r = PatternRecognition.detect(candles);
+      expect(_has(r, '向下跳空'), isTrue);
+    });
+
+    test('回傳項目 index 在 candles 範圍內', () {
+      final candles = [
+        for (var i = 1; i <= 28; i++) _c(i, close: 100),
+        _c(29, open: 100, close: 110, high: 110, low: 100),
+      ];
+      final r = PatternRecognition.detect(candles);
+      for (final p in r) {
+        expect(p.index, inInclusiveRange(0, candles.length - 1));
+      }
+    });
+
+    test('資料 < 5 完全不掃描', () {
+      expect(PatternRecognition.detect([]), isEmpty);
+      expect(PatternRecognition.detect([_c(1)]), isEmpty);
+      expect(PatternRecognition.detect([_c(1), _c(2), _c(3), _c(4)]),
+          isEmpty);
+    });
+
+    test('CandlePattern bias 對應 enum', () {
+      final candles = [
+        for (var i = 1; i <= 28; i++) _c(i, close: 100),
+        _c(29, open: 100, close: 110, high: 110, low: 100),
+      ];
+      final r = PatternRecognition.detect(candles);
+      // 長紅 K 是 bullish
+      final longRed = r.firstWhere((p) => p.name.contains('長紅'));
+      expect(longRed.bias, PatternBias.bullish);
+    });
   });
 }
