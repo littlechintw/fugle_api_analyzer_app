@@ -47,7 +47,12 @@ class _StockDetailPageState extends ConsumerState<StockDetailPage> {
   @override
   Widget build(BuildContext context) {
     final ref = this.ref;
-    final quoteAsync = ref.watch(quoteProvider(symbol));
+    final pollQuoteAsync = ref.watch(quoteProvider(symbol));
+    final wsQuoteAsync = ref.watch(realtimeQuoteProvider(symbol));
+    // WS 一旦有資料就用 WS；否則 fallback 用 polling
+    final quoteAsync = wsQuoteAsync.hasValue
+        ? wsQuoteAsync
+        : pollQuoteAsync;
     final candlesAsync = ref.watch(candlesProvider(symbol));
     final intradayAsync = ref.watch(intradayCandlesProvider(symbol));
     final institutionalAsync = ref.watch(institutionalFlowProvider(symbol));
