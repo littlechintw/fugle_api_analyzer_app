@@ -3,8 +3,10 @@ import 'package:hive_flutter/hive_flutter.dart';
 
 import '../models/api_log.dart';
 import '../models/candle.dart';
+import '../models/price_alert.dart';
 import '../models/stock_quote.dart';
 import '../models/ticker.dart';
+import '../models/watchlist_group.dart';
 import '../models/watchlist_item.dart';
 
 /// 集中管理 Hive box 開啟與 TypeAdapter 註冊
@@ -19,6 +21,8 @@ class HiveService {
   static const String watchlistBox = 'watchlist_box';
   static const String settingsBox = 'settings_box';
   static const String tickersBox = 'tickers_box';
+  static const String priceAlertsBox = 'price_alerts_box';
+  static const String watchlistGroupsBox = 'watchlist_groups_box';
 
   bool _initialised = false;
 
@@ -42,6 +46,12 @@ class HiveService {
     if (!Hive.isAdapterRegistered(14)) {
       Hive.registerAdapter(TickerAdapter());
     }
+    if (!Hive.isAdapterRegistered(15)) {
+      Hive.registerAdapter(PriceAlertAdapter());
+    }
+    if (!Hive.isAdapterRegistered(16)) {
+      Hive.registerAdapter(WatchlistGroupAdapter());
+    }
 
     // 開啟所有 box
     await Future.wait([
@@ -51,6 +61,8 @@ class HiveService {
       Hive.openBox<WatchlistItem>(watchlistBox),
       Hive.openBox(settingsBox),
       Hive.openBox<Ticker>(tickersBox),
+      Hive.openBox<PriceAlert>(priceAlertsBox),
+      Hive.openBox<WatchlistGroup>(watchlistGroupsBox),
     ]);
 
     _initialised = true;
@@ -62,4 +74,7 @@ class HiveService {
   Box<WatchlistItem> get watchlist => Hive.box<WatchlistItem>(watchlistBox);
   Box get settings => Hive.box(settingsBox);
   Box<Ticker> get tickers => Hive.box<Ticker>(tickersBox);
+  Box<PriceAlert> get priceAlerts => Hive.box<PriceAlert>(priceAlertsBox);
+  Box<WatchlistGroup> get watchlistGroups =>
+      Hive.box<WatchlistGroup>(watchlistGroupsBox);
 }

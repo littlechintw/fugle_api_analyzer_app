@@ -6,6 +6,7 @@ import '../../core/theme/app_theme.dart';
 import '../../core/widgets/network_progress_bar.dart';
 import '../../data/providers/providers.dart';
 import '../../indicators/analysis.dart';
+import '../alerts/price_alert_sheet.dart';
 import 'widgets/diagnosis_panel.dart';
 import 'widgets/indicator_chart.dart';
 import 'widgets/institutional_card.dart';
@@ -70,6 +71,19 @@ class _StockDetailPageState extends ConsumerState<StockDetailPage> {
           ],
         ),
         actions: [
+          IconButton(
+            tooltip: '設定價格警示',
+            icon: const Icon(Icons.notifications_active_outlined),
+            onPressed: () {
+              final q = ref.read(quoteProvider(symbol)).asData?.value;
+              showPriceAlertSheet(
+                context,
+                symbol: symbol,
+                name: name,
+                currentPrice: q?.lastPrice ?? 0,
+              );
+            },
+          ),
           Consumer(builder: (_, r, __) {
             final busy = r.watch(networkActivityProvider) > 0;
             return IconButton(

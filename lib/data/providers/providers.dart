@@ -23,7 +23,9 @@ import '../services/ticker_catalog_service.dart';
 import '../services/twse_fundamental_client.dart';
 import 'chart_options_provider.dart';
 import 'network_activity_provider.dart';
+import 'price_alert_provider.dart';
 import 'trade_color_provider.dart';
+import 'watchlist_group_provider.dart';
 import 'watchlist_sort_provider.dart';
 
 export 'chart_options_provider.dart'
@@ -35,7 +37,10 @@ export 'chart_options_provider.dart'
         ChartTimeframeMeta,
         ChartRangeMeta;
 export 'network_activity_provider.dart' show networkActivityProvider;
+export 'price_alert_provider.dart' show priceAlertsProvider;
 export 'trade_color_provider.dart' show tradeColorModeProvider;
+export 'watchlist_group_provider.dart'
+    show watchlistGroupsProvider, selectedGroupProvider;
 export 'watchlist_sort_provider.dart'
     show watchlistSortProvider, WatchlistSort, WatchlistSortLabel;
 
