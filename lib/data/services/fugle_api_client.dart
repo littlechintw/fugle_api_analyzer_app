@@ -53,18 +53,24 @@ class FugleApiClient {
     return resp.data ?? const {};
   }
 
-  /// 歷史日 K 線（candles）
+  /// 歷史 K 線（candles）
   ///
-  /// [from] / [to] 為 yyyy-MM-dd
+  /// [from] / [to] 為 yyyy-MM-dd，[timeframe] 可填 D / W / M / 1 / 5 / 60 ...
   Future<List<Map<String, dynamic>>> historicalCandles(
     String symbol, {
     required String from,
     required String to,
+    String timeframe = 'D',
   }) async {
     final opts = await _authOptions();
     final resp = await _dio.get<Map<String, dynamic>>(
       '/stock/historical/candles/$symbol',
-      queryParameters: {'from': from, 'to': to},
+      queryParameters: {
+        'from': from,
+        'to': to,
+        'timeframe': timeframe,
+        'sort': 'asc',
+      },
       options: opts,
     );
     final data = resp.data ?? const {};
@@ -87,6 +93,65 @@ class FugleApiClient {
     final list = (resp.data?['data'] as List?) ?? const [];
     return list.cast<Map<String, dynamic>>();
   }
+
+  /// 漲跌幅排行 (依市場別、方向)
+  /// [market]: TSE 上市 / OTC 上櫃
+  /// [direction]: up / down
+  /// [change]: percent / value
+  Future<List<Map<String, dynamic>>> snapshotMovers({
+    required String market,
+    required String direction,
+    String change = 'percent',
+  }) async {
+    final opts = await _authOptions();
+    final resp = await _dio.get<Map<String, dynamic>>(
+      '/stock/snapshot/movers/$market',
+      queryParameters: {'direction': direction, 'change': change},
+      options: opts,
+    );
+    final list = (resp.data?['data'] as List?) ?? const [];
+    return list.cast<Map<String, dynamic>>();
+  }
+
+  /// 成交量/值排行
+  /// [trade]: volume / value
+  Future<List<Map<String, dynamic>>> snapshotActives({
+    required String market,
+    String trade = 'value',
+  }) async {
+    final opts = await _authOptions();
+    final resp = await _dio.get<Map<String, dynamic>>(
+      '/stock/snapshot/actives/$market',
+      queryParameters: {'trade': trade},
+      options: opts,
+    );
+    final list = (resp.data?['data'] as List?) ?? const [];
+    return list.cast<Map<String, dynamic>>();
+  }
+
+  /// 除權息資料 (依日期區間)
+  ///
+  /// 開發者方案專屬，基本用戶體驗到 2026/2/12
+  Future<List<Map<String, dynamic>>> dividends({
+    required DateTime from,
+    required DateTime to,
+  }) async {
+    final opts = await _authOptions();
+    final f = _dateStr(from);
+    final t = _dateStr(to);
+    final resp = await _dio.get<Map<String, dynamic>>(
+      '/stock/corporate-actions/dividends',
+      queryParameters: {'start_date': f, 'end_date': t},
+      options: opts,
+    );
+    final list = (resp.data?['data'] as List?) ?? const [];
+    return list.cast<Map<String, dynamic>>();
+  }
+
+  static String _dateStr(DateTime d) =>
+      '${d.year.toString().padLeft(4, '0')}-'
+      '${d.month.toString().padLeft(2, '0')}-'
+      '${d.day.toString().padLeft(2, '0')}';
 
   /// 近 52 週統計
   Future<Map<String, dynamic>> historicalStats(String symbol) async {

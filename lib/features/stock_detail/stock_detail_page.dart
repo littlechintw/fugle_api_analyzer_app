@@ -9,7 +9,10 @@ import '../../indicators/analysis.dart';
 import 'widgets/diagnosis_panel.dart';
 import 'widgets/indicator_chart.dart';
 import 'widgets/institutional_card.dart';
+import 'widgets/chart_controls.dart';
 import 'widgets/data_sources_footer.dart';
+import 'widgets/dividend_card.dart';
+import 'widgets/fundamental_card.dart';
 import 'widgets/intraday_chart.dart';
 import 'widgets/kline_chart.dart';
 import 'widgets/order_book_card.dart';
@@ -49,6 +52,8 @@ class _StockDetailPageState extends ConsumerState<StockDetailPage> {
     final institutionalAsync = ref.watch(institutionalFlowProvider(symbol));
     final statsAsync = ref.watch(historicalStatsProvider(symbol));
     final orderBookAsync = ref.watch(orderBookProvider(symbol));
+    final dividendsAsync = ref.watch(dividendsProvider(symbol));
+    final fundamentalAsync = ref.watch(fundamentalProvider(symbol));
     final diagnosis = ref.watch(diagnosisProvider(symbol));
 
     return Scaffold(
@@ -165,18 +170,24 @@ class _StockDetailPageState extends ConsumerState<StockDetailPage> {
                     )
                   : candlesAsync.when(
                       data: (c) {
-                        final last90 =
-                            c.length > 90 ? c.sublist(c.length - 90) : c;
+                        final shown = c;
+                        final compare = ref.watch(compareIndexProvider);
+                        final indexAsync =
+                            compare ? ref.watch(indexCandlesProvider) : null;
                         return Column(
                           children: [
+                            const ChartControls(),
+                            const SizedBox(height: 6),
                             KLineChart(
-                              candles: last90,
+                              candles: shown,
+                              indexCandles:
+                                  indexAsync?.asData?.value,
                               onHover: (i) => setState(
                                   () => _crosshairIndex = i),
                             ),
                             const SizedBox(height: 16),
                             IndicatorChart(
-                              candles: last90,
+                              candles: shown,
                               highlightIndex: _crosshairIndex,
                             ),
                           ],
@@ -197,6 +208,21 @@ class _StockDetailPageState extends ConsumerState<StockDetailPage> {
             candlesAsync.maybeWhen(
               data: (c) =>
                   VolatilityCard(report: VolatilityAnalyser.analyse(c)),
+              orElse: () => const SizedBox.shrink(),
+            ),
+            // 基本面
+            fundamentalAsync.maybeWhen(
+              data: (f) =>
+                  f == null ? const SizedBox.shrink() : FundamentalCard(snapshot: f),
+              orElse: () => const SizedBox.shrink(),
+            ),
+            // 除權息
+            dividendsAsync.maybeWhen(
+              data: (list) => DividendCard(
+                dividends: list,
+                currentPrice:
+                    quoteAsync.asData?.value.lastPrice ?? 0,
+              ),
               orElse: () => const SizedBox.shrink(),
             ),
             // 三大法人

@@ -6,9 +6,12 @@ import '../models/api_log.dart';
 import '../models/candle.dart';
 import '../models/stock_quote.dart';
 import '../models/watchlist_item.dart';
+import '../models/dividend.dart';
+import '../models/fundamental.dart';
 import '../models/historical_stats.dart';
 import '../models/institutional_flow.dart';
 import '../models/intraday_candle.dart';
+import '../models/market_mover.dart';
 import '../models/order_book.dart';
 import '../models/ticker.dart';
 import '../services/fugle_api_client.dart';
@@ -17,10 +20,20 @@ import '../services/hive_service.dart';
 import '../services/secure_storage_service.dart';
 import '../services/stock_repository.dart';
 import '../services/ticker_catalog_service.dart';
+import '../services/twse_fundamental_client.dart';
+import 'chart_options_provider.dart';
 import 'network_activity_provider.dart';
 import 'trade_color_provider.dart';
 import 'watchlist_sort_provider.dart';
 
+export 'chart_options_provider.dart'
+    show
+        chartOptionsProvider,
+        ChartOptions,
+        ChartTimeframe,
+        ChartRange,
+        ChartTimeframeMeta,
+        ChartRangeMeta;
 export 'network_activity_provider.dart' show networkActivityProvider;
 export 'trade_color_provider.dart' show tradeColorModeProvider;
 export 'watchlist_sort_provider.dart'
@@ -276,7 +289,12 @@ final quoteProvider =
 
 final candlesProvider =
     FutureProvider.family<List<Candle>, String>((ref, symbol) async {
-  return ref.watch(stockRepositoryProvider).getDailyCandles(symbol);
+  final opts = ref.watch(chartOptionsProvider);
+  return ref.watch(stockRepositoryProvider).getDailyCandles(
+        symbol,
+        timeframe: opts.timeframe.apiCode,
+        days: opts.range.displayBarsFor(opts.timeframe),
+      );
 });
 
 /// 五檔買賣盤 — 不快取，每次直接打 intraday/quote
@@ -287,6 +305,25 @@ final orderBookProvider =
   return OrderBookSnapshot.fromFugleQuote(symbol, raw);
 });
 
+/// 除權息資料 — 整批抓近 5 年再依股票篩
+/// 同一 session 共用快取 (Riverpod 自動快取)，App 重啟才會再打
+final _dividendsBundleProvider =
+    FutureProvider<List<Dividend>>((ref) async {
+  final api = ref.watch(fugleApiClientProvider);
+  final now = DateTime.now();
+  final from = DateTime(now.year - 5, 1, 1);
+  final to = DateTime(now.year + 1, 1, 1); // 含未來預告
+  final raw = await api.dividends(from: from, to: to);
+  return raw.map(Dividend.fromFugle).toList()
+    ..sort((a, b) => b.date.compareTo(a.date));
+});
+
+final dividendsProvider =
+    FutureProvider.family<List<Dividend>, String>((ref, symbol) async {
+  final all = await ref.watch(_dividendsBundleProvider.future);
+  return all.where((d) => d.symbol == symbol).toList();
+});
+
 /// 52 週統計 — 一日內快取 (家族 in-memory)
 final historicalStatsProvider =
     FutureProvider.family<HistoricalStats, String>((ref, symbol) async {
@@ -295,6 +332,26 @@ final historicalStatsProvider =
   return HistoricalStats.fromFugle({'symbol': symbol, ...raw});
 });
 
+/// 加權指數 K 線 (固定 symbol = IR0001)，跟個股 timeframe / range 同步
+final indexCandlesProvider = FutureProvider<List<Candle>>((ref) async {
+  final opts = ref.watch(chartOptionsProvider);
+  return ref.watch(stockRepositoryProvider).getDailyCandles(
+        'IR0001',
+        timeframe: opts.timeframe.apiCode,
+        days: opts.range.displayBarsFor(opts.timeframe),
+      );
+});
+
+/// 是否在 K 線上疊加大盤對比
+class CompareIndexNotifier extends Notifier<bool> {
+  @override
+  bool build() => false;
+  void toggle() => state = !state;
+}
+
+final compareIndexProvider =
+    NotifierProvider<CompareIndexNotifier, bool>(CompareIndexNotifier.new);
+
 /// 當日 1 分鐘 K - 不快取，每次重新打 (盤中會持續更新)
 final intradayCandlesProvider =
     FutureProvider.family<List<IntradayCandle>, String>((ref, symbol) async {
@@ -302,6 +359,70 @@ final intradayCandlesProvider =
   final raw = await api.intradayCandles(symbol);
   return raw.map(IntradayCandle.fromFugle).toList()
     ..sort((a, b) => a.time.compareTo(b.time));
+});
+
+// ============== 市場熱度排行 ==============
+
+enum MarketBoard { tse, otc }
+enum MoversKind { gainers, losers, volume, value }
+
+extension MarketBoardCode on MarketBoard {
+  String get code => switch (this) {
+        MarketBoard.tse => 'TSE',
+        MarketBoard.otc => 'OTC',
+      };
+  String get label => switch (this) {
+        MarketBoard.tse => '上市',
+        MarketBoard.otc => '上櫃',
+      };
+}
+
+extension MoversKindMeta on MoversKind {
+  String get label => switch (this) {
+        MoversKind.gainers => '漲幅',
+        MoversKind.losers => '跌幅',
+        MoversKind.volume => '成交量',
+        MoversKind.value => '成交值',
+      };
+}
+
+final marketMoversProvider = FutureProvider.family<List<MarketMover>,
+    ({MarketBoard board, MoversKind kind})>((ref, args) async {
+  final api = ref.watch(fugleApiClientProvider);
+  List<Map<String, dynamic>> raw;
+  switch (args.kind) {
+    case MoversKind.gainers:
+      raw = await api.snapshotMovers(
+          market: args.board.code, direction: 'up', change: 'percent');
+      break;
+    case MoversKind.losers:
+      raw = await api.snapshotMovers(
+          market: args.board.code, direction: 'down', change: 'percent');
+      break;
+    case MoversKind.volume:
+      raw = await api.snapshotActives(
+          market: args.board.code, trade: 'volume');
+      break;
+    case MoversKind.value:
+      raw = await api.snapshotActives(
+          market: args.board.code, trade: 'value');
+      break;
+  }
+  return raw.map(MarketMover.fromFugle).toList();
+});
+
+// ============== 基本面 (TWSE OpenAPI) ==============
+
+final twseFundamentalClientProvider =
+    Provider<TwseFundamentalClient>((ref) {
+  return TwseFundamentalClient.create(
+    hive: ref.watch(hiveServiceProvider),
+  );
+});
+
+final fundamentalProvider =
+    FutureProvider.family<FundamentalSnapshot?, String>((ref, symbol) async {
+  return ref.watch(twseFundamentalClientProvider).bySymbol(symbol);
 });
 
 // ============== 三大法人 (TWSE) ==============
