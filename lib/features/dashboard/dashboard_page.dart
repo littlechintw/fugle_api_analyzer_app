@@ -4,11 +4,15 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../core/theme/app_theme.dart';
 import '../../core/widgets/disclaimer_dialog.dart';
 import '../../core/widgets/network_progress_bar.dart';
+import '../../data/models/price_alert.dart';
+import '../../data/models/watchlist_group.dart';
+import '../../data/providers/watchlist_group_provider.dart';
 import '../../data/providers/providers.dart';
 import '../market/market_page.dart';
 import '../search/add_stock_sheet.dart';
 import '../settings/settings_page.dart';
 import '../stock_detail/stock_detail_page.dart';
+import 'widgets/empty_watchlist.dart';
 import 'widgets/stock_card.dart';
 
 class DashboardPage extends ConsumerStatefulWidget {
@@ -28,14 +32,64 @@ class _DashboardPageState extends ConsumerState<DashboardPage> {
     });
   }
 
+  /// 檢查所有 enabled 警示是否被當前報價觸發，若是則彈 SnackBar 並標記
+  void _checkPriceAlerts() {
+    final alerts = ref.read(priceAlertsProvider);
+    if (alerts.isEmpty) return;
+    final repo = ref.read(stockRepositoryProvider);
+    final notifier = ref.read(priceAlertsProvider.notifier);
+    for (final a in alerts) {
+      if (!a.enabled) continue;
+      final q = repo.cachedQuote(a.symbol);
+      if (q == null) continue;
+      // 4 小時內已觸發過不重彈
+      if (a.lastTriggeredAt != null &&
+          DateTime.now().difference(a.lastTriggeredAt!) <
+              const Duration(hours: 4)) {
+        continue;
+      }
+      if (a.isTriggered(q.lastPrice)) {
+        notifier.markTriggered(a.id);
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              '🔔 ${a.name} (${a.symbol}) 已 ${a.directionLabel} '
+              '${a.price.toStringAsFixed(2)} 元，現價 ${q.lastPrice.toStringAsFixed(2)}',
+            ),
+            backgroundColor: a.direction == AlertDirection.above
+                ? AppTheme.bullish
+                : AppTheme.bearish,
+            duration: const Duration(seconds: 5),
+          ),
+        );
+      }
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final raw = ref.watch(watchlistProvider);
     final sort = ref.watch(watchlistSortProvider);
     final tokenAsync = ref.watch(apiTokenProvider);
-    final list = _sortWatchlist(ref, raw, sort);
+    final groups = ref.watch(watchlistGroupsProvider);
+    final selectedGroup = ref.watch(selectedGroupProvider);
+    final groupNotifier = ref.watch(watchlistGroupsProvider.notifier);
+
+    // 依群組過濾
+    final filtered = selectedGroup == WatchlistGroup.allGroupId
+        ? raw
+        : raw
+            .where((w) =>
+                groupNotifier.groupIdOf(w.symbol) == selectedGroup)
+            .toList();
+    final list = _sortWatchlist(ref, filtered, sort);
 
     final busy = ref.watch(networkActivityProvider) > 0;
+    // 每次 build 結束後檢查價格警示
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) _checkPriceAlerts();
+    });
     return Scaffold(
       appBar: AppBar(
         title: const Text('股市技術分析'),
@@ -90,6 +144,7 @@ class _DashboardPageState extends ConsumerState<DashboardPage> {
             loading: () => const SizedBox.shrink(),
             error: (_, __) => const SizedBox.shrink(),
           ),
+          if (groups.isNotEmpty) _groupTabs(ref, groups, selectedGroup),
           Padding(
             padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
             child: Row(
@@ -151,11 +206,8 @@ class _DashboardPageState extends ConsumerState<DashboardPage> {
           ),
           Expanded(
             child: list.isEmpty
-                ? const Center(
-                    child: Text(
-                      '尚未加入任何自選股',
-                      style: TextStyle(color: AppTheme.textSecondary),
-                    ),
+                ? EmptyWatchlistView(
+                    onAddTap: () => showAddStockSheet(context),
                   )
                 : ListView.separated(
                     padding: const EdgeInsets.fromLTRB(12, 8, 12, 80),
@@ -173,7 +225,8 @@ class _DashboardPageState extends ConsumerState<DashboardPage> {
                             ),
                           ),
                         ),
-                        onLongPress: () => _confirmRemove(context, ref, item.symbol, item.name),
+                        onLongPress: () => _showItemMenu(
+                            context, ref, item.symbol, item.name),
                       );
                     },
                   ),
@@ -214,6 +267,158 @@ class _DashboardPageState extends ConsumerState<DashboardPage> {
     return out;
   }
 
+  Widget _groupTabs(
+      WidgetRef ref, List<WatchlistGroup> groups, String selected) {
+    return SizedBox(
+      height: 36,
+      child: ListView(
+        scrollDirection: Axis.horizontal,
+        padding: const EdgeInsets.fromLTRB(12, 8, 12, 0),
+        children: [
+          _groupChip(
+            ref: ref,
+            id: WatchlistGroup.allGroupId,
+            label: '全部',
+            selected: selected == WatchlistGroup.allGroupId,
+          ),
+          for (final g in groups)
+            _groupChip(
+              ref: ref,
+              id: g.id,
+              label: g.name,
+              color: Color(g.colorValue),
+              selected: selected == g.id,
+            ),
+          // 「+ 管理」按鈕
+          Padding(
+            padding: const EdgeInsets.only(left: 4),
+            child: ActionChip(
+              label: const Icon(Icons.tune, size: 14),
+              onPressed: () => _showGroupManager(context, ref),
+              backgroundColor: AppTheme.bgSurface,
+              side: const BorderSide(color: AppTheme.borderColor),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _groupChip({
+    required WidgetRef ref,
+    required String id,
+    required String label,
+    Color? color,
+    required bool selected,
+  }) {
+    return Padding(
+      padding: const EdgeInsets.only(right: 6),
+      child: ChoiceChip(
+        label: Text(label, style: const TextStyle(fontSize: 12)),
+        selected: selected,
+        onSelected: (_) =>
+            ref.read(selectedGroupProvider.notifier).state = id,
+        backgroundColor: AppTheme.bgSurface,
+        selectedColor: (color ?? AppTheme.accent).withValues(alpha: 0.20),
+        labelStyle: TextStyle(
+          color: selected ? (color ?? AppTheme.accent) : AppTheme.textSecondary,
+          fontWeight: FontWeight.w600,
+        ),
+        side: BorderSide(
+          color: selected ? (color ?? AppTheme.accent) : AppTheme.borderColor,
+        ),
+      ),
+    );
+  }
+
+  void _showItemMenu(
+      BuildContext context, WidgetRef ref, String symbol, String name) {
+    final groups = ref.read(watchlistGroupsProvider);
+    final currentGroupId =
+        ref.read(watchlistGroupsProvider.notifier).groupIdOf(symbol);
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: AppTheme.bgPrimary,
+      builder: (ctx) => SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.symmetric(vertical: 8),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              ListTile(
+                title: Text(
+                  '$name ($symbol)',
+                  style: const TextStyle(
+                    color: AppTheme.textPrimary,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+                subtitle: Text(
+                  '目前群組：${groups.firstWhere(
+                    (g) => g.id == currentGroupId,
+                    orElse: () => const WatchlistGroup(
+                        id: WatchlistGroup.allGroupId,
+                        name: '全部',
+                        sortOrder: 0,
+                        colorValue: 0xFFFFB020),
+                  ).name}',
+                  style: const TextStyle(color: AppTheme.textSecondary),
+                ),
+              ),
+              const Divider(height: 1),
+              ListTile(
+                leading: const Icon(Icons.folder_open),
+                title: const Text('移到「全部」(取消歸屬)'),
+                trailing: currentGroupId == WatchlistGroup.allGroupId
+                    ? const Icon(Icons.check, color: AppTheme.accent)
+                    : null,
+                onTap: () {
+                  ref.read(watchlistGroupsProvider.notifier).assign(
+                      symbol, WatchlistGroup.allGroupId);
+                  Navigator.pop(ctx);
+                },
+              ),
+              for (final g in groups)
+                ListTile(
+                  leading: Icon(Icons.folder, color: Color(g.colorValue)),
+                  title: Text('移到「${g.name}」'),
+                  trailing: currentGroupId == g.id
+                      ? const Icon(Icons.check, color: AppTheme.accent)
+                      : null,
+                  onTap: () {
+                    ref
+                        .read(watchlistGroupsProvider.notifier)
+                        .assign(symbol, g.id);
+                    Navigator.pop(ctx);
+                  },
+                ),
+              const Divider(height: 1),
+              ListTile(
+                leading: const Icon(Icons.delete_outline,
+                    color: AppTheme.bullish),
+                title: const Text('從自選股移除',
+                    style: TextStyle(color: AppTheme.bullish)),
+                onTap: () {
+                  Navigator.pop(ctx);
+                  _confirmRemove(context, ref, symbol, name);
+                },
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  void _showGroupManager(BuildContext context, WidgetRef ref) {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: AppTheme.bgPrimary,
+      builder: (_) => const _GroupManagerSheet(),
+    );
+  }
+
   Future<void> _confirmRemove(
       BuildContext context, WidgetRef ref, String symbol, String name) async {
     final ok = await showDialog<bool>(
@@ -234,6 +439,153 @@ class _DashboardPageState extends ConsumerState<DashboardPage> {
     if (ok == true) {
       ref.read(watchlistProvider.notifier).remove(symbol);
     }
+  }
+}
+
+class _GroupManagerSheet extends ConsumerStatefulWidget {
+  const _GroupManagerSheet();
+
+  @override
+  ConsumerState<_GroupManagerSheet> createState() =>
+      _GroupManagerSheetState();
+}
+
+class _GroupManagerSheetState extends ConsumerState<_GroupManagerSheet> {
+  final _ctrl = TextEditingController();
+  static const _palette = [
+    0xFFFFB020, // accent
+    0xFFEF476F,
+    0xFF06D6A0,
+    0xFF118AB2,
+    0xFF8E9DFF,
+    0xFFFFD166,
+  ];
+  int _selectedColor = _palette.first;
+
+  @override
+  void dispose() {
+    _ctrl.dispose();
+    super.dispose();
+  }
+
+  void _create() {
+    final name = _ctrl.text.trim();
+    if (name.isEmpty) return;
+    ref.read(watchlistGroupsProvider.notifier).create(name, _selectedColor);
+    _ctrl.clear();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final groups = ref.watch(watchlistGroupsProvider);
+    return Padding(
+      padding: EdgeInsets.only(
+          bottom: MediaQuery.of(context).viewInsets.bottom),
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(20, 12, 20, 24),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Center(
+              child: Container(
+                width: 40,
+                height: 4,
+                margin: const EdgeInsets.only(bottom: 12),
+                decoration: BoxDecoration(
+                  color: AppTheme.borderColor,
+                  borderRadius: BorderRadius.circular(2),
+                ),
+              ),
+            ),
+            const Text(
+              '管理自選群組',
+              style: TextStyle(
+                color: AppTheme.textPrimary,
+                fontSize: 16,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+            const SizedBox(height: 16),
+            // 既有群組
+            if (groups.isEmpty)
+              const Padding(
+                padding: EdgeInsets.symmetric(vertical: 12),
+                child: Text(
+                  '尚未建立任何群組',
+                  style: TextStyle(
+                      color: AppTheme.textSecondary, fontSize: 12),
+                ),
+              )
+            else
+              ...groups.map((g) => ListTile(
+                    contentPadding: EdgeInsets.zero,
+                    leading:
+                        Icon(Icons.folder, color: Color(g.colorValue)),
+                    title: Text(g.name),
+                    trailing: IconButton(
+                      icon: const Icon(Icons.delete_outline,
+                          color: AppTheme.textSecondary),
+                      onPressed: () => ref
+                          .read(watchlistGroupsProvider.notifier)
+                          .remove(g.id),
+                    ),
+                  )),
+            const Divider(color: AppTheme.borderColor),
+            const SizedBox(height: 8),
+            const Text(
+              '新增群組',
+              style: TextStyle(
+                color: AppTheme.textSecondary,
+                fontSize: 11,
+                letterSpacing: 1.0,
+              ),
+            ),
+            const SizedBox(height: 8),
+            TextField(
+              controller: _ctrl,
+              decoration: const InputDecoration(
+                labelText: '群組名稱',
+                hintText: '例：長期持有、AI 概念',
+              ),
+            ),
+            const SizedBox(height: 8),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+              children: [
+                for (final c in _palette)
+                  GestureDetector(
+                    onTap: () => setState(() => _selectedColor = c),
+                    child: Container(
+                      width: 32,
+                      height: 32,
+                      decoration: BoxDecoration(
+                        color: Color(c),
+                        shape: BoxShape.circle,
+                        border: Border.all(
+                          color: _selectedColor == c
+                              ? AppTheme.textPrimary
+                              : Colors.transparent,
+                          width: 2,
+                        ),
+                      ),
+                    ),
+                  ),
+              ],
+            ),
+            const SizedBox(height: 12),
+            SizedBox(
+              width: double.infinity,
+              child: ElevatedButton.icon(
+                onPressed: _create,
+                icon: const Icon(Icons.add),
+                label: const Text('建立群組'),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
   }
 }
 
