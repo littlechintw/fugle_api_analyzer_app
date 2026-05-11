@@ -5,6 +5,7 @@ import '../../core/theme/app_theme.dart';
 import '../../core/widgets/disclaimer_dialog.dart';
 import '../../core/widgets/network_progress_bar.dart';
 import '../../data/providers/providers.dart';
+import '../market/market_page.dart';
 import '../search/add_stock_sheet.dart';
 import '../settings/settings_page.dart';
 import '../stock_detail/stock_detail_page.dart';
@@ -59,6 +60,13 @@ class _DashboardPageState extends ConsumerState<DashboardPage> {
                       ref.invalidate(candlesProvider(w.symbol));
                     }
                   },
+          ),
+          IconButton(
+            tooltip: '市場熱度',
+            icon: const Icon(Icons.trending_up),
+            onPressed: () => Navigator.of(context).push(
+              MaterialPageRoute(builder: (_) => const MarketPage()),
+            ),
           ),
           IconButton(
             tooltip: '設定',
