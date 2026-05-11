@@ -160,4 +160,86 @@ void main() {
       }
     });
   });
+
+  // ============== 邊界 / 退化 case ==============
+  group('邊界 case', () {
+    test('SMA period == 1 → 每點等於 close', () {
+      final candles = [_c(1, 100), _c(2, 200), _c(3, 300)];
+      final sma = Indicators.sma(candles, 1);
+      expect(sma[0], 100);
+      expect(sma[1], 200);
+      expect(sma[2], 300);
+    });
+
+    test('SMA period == 0 → 全 NaN', () {
+      final candles = [_c(1, 100), _c(2, 200)];
+      final sma = Indicators.sma(candles, 0);
+      expect(sma.every((v) => v.isNaN), isTrue);
+    });
+
+    test('RSI 上漲下跌交錯不爆炸', () {
+      final candles = <Candle>[];
+      for (var i = 1; i <= 30; i++) {
+        candles.add(_c(i, i.isEven ? 100 : 110));
+      }
+      final rsi = Indicators.rsi(candles);
+      for (final v in rsi.skip(14)) {
+        expect(v, inInclusiveRange(0, 100));
+      }
+    });
+
+    test('Bollinger 全部相同價格 → upper = middle = lower', () {
+      final candles = [
+        for (var i = 1; i <= 30; i++) _c(i, 100, high: 100, low: 100),
+      ];
+      final b = Indicators.bollinger(candles);
+      for (var i = 19; i < candles.length; i++) {
+        expect(b.upper[i], closeTo(b.middle[i], 1e-6));
+        expect(b.lower[i], closeTo(b.middle[i], 1e-6));
+      }
+    });
+
+    test('OBV 同價格時不變', () {
+      final candles = [
+        for (var i = 1; i <= 5; i++) _c(i, 100, vol: 1000),
+      ];
+      final obv = Indicators.obv(candles);
+      // close 都相同 → diff == 0 → 不加不減
+      expect(obv.first, 0);
+      expect(obv.last, 0);
+    });
+
+    test('ATR 在週期內全部 NaN', () {
+      final candles = [
+        for (var i = 1; i <= 14; i++) _c(i, 100, high: 102, low: 98),
+      ];
+      final atr = Indicators.atr(candles);
+      for (var i = 0; i < 14; i++) {
+        expect(atr[i].isNaN, isTrue);
+      }
+    });
+
+    test('Williams %R 高低相同 → 預設 -50', () {
+      final candles = [
+        for (var i = 1; i <= 20; i++) _c(i, 100, high: 100, low: 100),
+      ];
+      final wr = Indicators.williamsR(candles);
+      // 高低相同會用 -50 fallback
+      for (var i = 13; i < candles.length; i++) {
+        expect(wr[i], -50);
+      }
+    });
+
+    test('KD 初始狀態 prevK = prevD = 50', () {
+      // 只有剛好 period 根時，第一個 KD 值會基於 prevK=50, prevD=50 算
+      final candles = [
+        for (var i = 1; i <= 9; i++)
+          _c(i, 100, high: 105, low: 95),
+      ];
+      final kd = Indicators.kd(candles, period: 9);
+      // 第 9 根有值
+      expect(kd.k[8].isNaN, isFalse);
+      expect(kd.d[8].isNaN, isFalse);
+    });
+  });
 }

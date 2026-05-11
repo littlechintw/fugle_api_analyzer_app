@@ -204,7 +204,8 @@ class PatternRecognition {
   static void _detectDoubleTopBottom(
       List<Candle> candles, List<CandlePattern> out) {
     if (candles.length < 20) return;
-    final tail = candles.sublist(candles.length - 30);
+    final start = math.max(0, candles.length - 30);
+    final tail = candles.sublist(start);
     final last = candles.length - 1;
     // 找出最低與次低
     int lo1 = 0, lo2 = -1;
