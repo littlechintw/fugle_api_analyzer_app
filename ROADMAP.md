@@ -513,12 +513,13 @@
 - ⏸ `#25` 崩潰回報 (需要 Sentry DSN，延後)
 - ✅ `#32` 隱私政策
 
-### Phase 4 — 即時化 (約 1 週)
-- `#24` WebSocket 即時報價
-- `#28` 背景刷新 + 推播
-- `#26` 生物識別
-- `#29` 持倉試算
-- `#30` 多股對比
+### Phase 4 — 即時化 (約 1 週) ✅ 多數完成
+- ✅ `#24` WebSocket 即時報價 (Fugle aggregates channel)
+- ⏸ `#28` 背景刷新 (UI 完成、scheduler 待 workmanager 實作)
+- ✅ `#26` 生物識別 (local_auth + BiometricGate)
+- ✅ `#29` 持倉試算 (Portfolio page)
+- ✅ `#30` 多股對比 (Compare page, 標準化疊圖)
+- ✅ Bonus: 系統通知 (flutter_local_notifications 富格式)
 
 ### Phase 5 — 進階 (彈性安排)
 - `#04` 逐筆成交
@@ -585,4 +586,10 @@
 | 2026-05-11 | #18 | ✅ 價格警示 (高於/低於、in-app SnackBar 通知) |
 | 2026-05-11 | #20 | ✅ 自選股分組 (群組 + TabBar + 長按移動) |
 | 2026-05-11 | #23 | ✅ 指標 + analysis 單元測試 (test/indicators_test.dart, analysis_test.dart) |
+| 2026-05-11 | #26 | ✅ 生物識別 (local_auth + BiometricGate 鎖屏) |
+| 2026-05-11 | #28 | ⚠ 背景刷新設定 UI 完成、實際 scheduler 待 workmanager |
+| 2026-05-11 | — | ✅ Bonus: 系統通知 (flutter_local_notifications, Material 3) |
+| 2026-05-11 | #29 | ✅ 持倉試算 (手動輸入、即時損益計算) |
+| 2026-05-11 | #30 | ✅ 多股對比 (2-5 檔標準化疊圖) |
+| 2026-05-11 | #24 | ✅ WebSocket 即時報價 (Fugle aggregates，引用計數 + 重連) |
 
