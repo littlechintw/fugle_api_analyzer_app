@@ -7,8 +7,11 @@ import '../../core/widgets/network_progress_bar.dart';
 import '../../data/models/price_alert.dart';
 import '../../data/models/watchlist_group.dart';
 import '../../data/providers/watchlist_group_provider.dart';
+import '../../data/services/notification_service.dart';
 import '../../data/providers/providers.dart';
+import '../compare/compare_page.dart';
 import '../market/market_page.dart';
+import '../portfolio/portfolio_page.dart';
 import '../search/add_stock_sheet.dart';
 import '../settings/settings_page.dart';
 import '../stock_detail/stock_detail_page.dart';
@@ -32,17 +35,18 @@ class _DashboardPageState extends ConsumerState<DashboardPage> {
     });
   }
 
-  /// 檢查所有 enabled 警示是否被當前報價觸發，若是則彈 SnackBar 並標記
+  /// 檢查所有 enabled 警示，觸發時：1) SnackBar 2) 系統通知
+  /// 多筆同時觸發改用 Inbox style 一筆彙整。
   void _checkPriceAlerts() {
     final alerts = ref.read(priceAlertsProvider);
     if (alerts.isEmpty) return;
     final repo = ref.read(stockRepositoryProvider);
     final notifier = ref.read(priceAlertsProvider.notifier);
+    final hits = <({PriceAlert alert, double currentPrice})>[];
     for (final a in alerts) {
       if (!a.enabled) continue;
       final q = repo.cachedQuote(a.symbol);
       if (q == null) continue;
-      // 4 小時內已觸發過不重彈
       if (a.lastTriggeredAt != null &&
           DateTime.now().difference(a.lastTriggeredAt!) <
               const Duration(hours: 4)) {
@@ -50,20 +54,37 @@ class _DashboardPageState extends ConsumerState<DashboardPage> {
       }
       if (a.isTriggered(q.lastPrice)) {
         notifier.markTriggered(a.id);
-        if (!mounted) return;
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(
-              '🔔 ${a.name} (${a.symbol}) 已 ${a.directionLabel} '
-              '${a.price.toStringAsFixed(2)} 元，現價 ${q.lastPrice.toStringAsFixed(2)}',
-            ),
-            backgroundColor: a.direction == AlertDirection.above
+        hits.add((alert: a, currentPrice: q.lastPrice));
+      }
+    }
+    if (hits.isEmpty || !mounted) return;
+
+    // SnackBar (前景時較直接的提示)
+    final first = hits.first;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(
+          hits.length == 1
+              ? '🔔 ${first.alert.name} (${first.alert.symbol}) 已 '
+                  '${first.alert.directionLabel} '
+                  '${first.alert.price.toStringAsFixed(2)} 元，'
+                  '現價 ${first.currentPrice.toStringAsFixed(2)}'
+              : '🔔 ${hits.length} 檔股票同時觸發警示',
+        ),
+        backgroundColor:
+            first.alert.direction == AlertDirection.above
                 ? AppTheme.bullish
                 : AppTheme.bearish,
-            duration: const Duration(seconds: 5),
-          ),
-        );
-      }
+        duration: const Duration(seconds: 5),
+      ),
+    );
+
+    // 系統通知 (前景 / 通知列都會出現)
+    if (hits.length == 1) {
+      NotificationService.instance
+          .showPriceAlert(alert: first.alert, currentPrice: first.currentPrice);
+    } else {
+      NotificationService.instance.showBulkAlerts(hits);
     }
   }
 
@@ -115,12 +136,43 @@ class _DashboardPageState extends ConsumerState<DashboardPage> {
                     }
                   },
           ),
-          IconButton(
-            tooltip: '市場熱度',
-            icon: const Icon(Icons.trending_up),
-            onPressed: () => Navigator.of(context).push(
-              MaterialPageRoute(builder: (_) => const MarketPage()),
-            ),
+          PopupMenuButton<String>(
+            tooltip: '更多',
+            icon: const Icon(Icons.apps),
+            onSelected: (v) {
+              Widget page = const PortfolioPage();
+              if (v == 'compare') page = const ComparePage();
+              if (v == 'market') page = const MarketPage();
+              Navigator.of(context).push(
+                MaterialPageRoute(builder: (_) => page),
+              );
+            },
+            itemBuilder: (_) => const [
+              PopupMenuItem(
+                value: 'portfolio',
+                child: Row(children: [
+                  Icon(Icons.account_balance_wallet_outlined, size: 18),
+                  SizedBox(width: 8),
+                  Text('我的持倉'),
+                ]),
+              ),
+              PopupMenuItem(
+                value: 'compare',
+                child: Row(children: [
+                  Icon(Icons.compare_arrows, size: 18),
+                  SizedBox(width: 8),
+                  Text('多股對比'),
+                ]),
+              ),
+              PopupMenuItem(
+                value: 'market',
+                child: Row(children: [
+                  Icon(Icons.trending_up, size: 18),
+                  SizedBox(width: 8),
+                  Text('市場熱度'),
+                ]),
+              ),
+            ],
           ),
           IconButton(
             tooltip: '設定',
