@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 
 import '../../../core/theme/app_theme.dart';
 import '../../../data/models/candle.dart';
+import '../../../data/providers/indicator_prefs_provider.dart';
 import '../../../indicators/indicators.dart';
 import 'indicator_info.dart';
 
@@ -37,10 +38,12 @@ extension SubIndicatorMeta on SubIndicator {
 class IndicatorChart extends StatefulWidget {
   final List<Candle> candles;
   final double height;
-  final int? highlightIndex; // 來自十字游標
+  final int? highlightIndex;
+  final IndicatorPrefs prefs;
   const IndicatorChart({
     super.key,
     required this.candles,
+    required this.prefs,
     this.highlightIndex,
     this.height = 160,
   });
@@ -127,10 +130,11 @@ class _IndicatorChartState extends State<IndicatorChart> {
   }
 
   Widget _buildChart() {
+    final p = widget.prefs;
     switch (_selected) {
       case SubIndicator.bias:
         return _OscChart(
-          values: Indicators.bias(widget.candles, 20),
+          values: Indicators.bias(widget.candles, p.biasPeriod),
           zeroLine: 0,
           warningHigh: 8,
           warningLow: -8,
@@ -139,7 +143,7 @@ class _IndicatorChartState extends State<IndicatorChart> {
         );
       case SubIndicator.rsi:
         return _OscChart(
-          values: Indicators.rsi(widget.candles),
+          values: Indicators.rsi(widget.candles, period: p.rsiPeriod),
           zeroLine: 50,
           warningHigh: 70,
           warningLow: 30,
@@ -150,11 +154,16 @@ class _IndicatorChartState extends State<IndicatorChart> {
         );
       case SubIndicator.macd:
         return _MacdChart(
-          macd: Indicators.macd(widget.candles),
+          macd: Indicators.macd(
+            widget.candles,
+            fast: p.macdFast,
+            slow: p.macdSlow,
+            signal: p.macdSignal,
+          ),
           highlightIndex: widget.highlightIndex,
         );
       case SubIndicator.kd:
-        final kd = Indicators.kd(widget.candles);
+        final kd = Indicators.kd(widget.candles, period: p.kdPeriod);
         return _TwoLineOscChart(
           line1: kd.k,
           line2: kd.d,
@@ -170,7 +179,8 @@ class _IndicatorChartState extends State<IndicatorChart> {
         );
       case SubIndicator.williams:
         return _OscChart(
-          values: Indicators.williamsR(widget.candles),
+          values: Indicators.williamsR(widget.candles,
+              period: p.williamsPeriod),
           zeroLine: -50,
           warningHigh: -20,
           warningLow: -80,

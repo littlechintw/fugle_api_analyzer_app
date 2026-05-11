@@ -6,6 +6,7 @@ import '../../core/theme/app_theme.dart';
 import '../../core/utils/formatters.dart';
 import '../../data/providers/providers.dart';
 import '../../data/providers/trade_color_provider.dart';
+import 'indicator_settings_page.dart';
 import 'legal_page.dart';
 import 'watchlist_backup.dart';
 
@@ -276,6 +277,82 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
                     ],
                   ),
                 ],
+              ),
+            ),
+          ),
+          const SizedBox(height: 24),
+          _section('快取'),
+          Card(
+            child: ListTile(
+              leading: const Icon(Icons.cleaning_services_outlined,
+                  color: AppTheme.accent),
+              title: const Text('清除本地快取'),
+              subtitle: const Text(
+                'K 線、報價、三大法人、基本面、代號目錄等所有本機資料',
+                style: TextStyle(fontSize: 11),
+              ),
+              trailing: const Icon(Icons.chevron_right,
+                  color: AppTheme.textSecondary),
+              onTap: () async {
+                final ok = await showDialog<bool>(
+                  context: context,
+                  builder: (ctx) => AlertDialog(
+                    title: const Text('清除快取'),
+                    content: const Text(
+                      '所有本機 K 線、報價、三大法人、基本面、代號目錄資料將被刪除。'
+                      '\n\n您的自選股、警示、群組、Token、設定不受影響。',
+                    ),
+                    actions: [
+                      TextButton(
+                        onPressed: () => Navigator.pop(ctx, false),
+                        child: const Text('取消'),
+                      ),
+                      ElevatedButton(
+                        onPressed: () => Navigator.pop(ctx, true),
+                        child: const Text('清除'),
+                      ),
+                    ],
+                  ),
+                );
+                if (ok != true) return;
+                final hive = ref.read(hiveServiceProvider);
+                await hive.candles.clear();
+                await hive.quotes.clear();
+                await hive.tickers.clear();
+                // settings 中的 instflow_day_* / fundamental_bwibbu / tickers_fetched_at
+                final keys = hive.settings.keys.toList();
+                for (final k in keys) {
+                  final s = k.toString();
+                  if (s.startsWith('instflow_day_') ||
+                      s.startsWith('fundamental_') ||
+                      s == 'tickers_fetched_at') {
+                    await hive.settings.delete(k);
+                  }
+                }
+                if (context.mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(content: Text('快取已清除，下次開頁面會重新抓')),
+                  );
+                }
+              },
+            ),
+          ),
+          const SizedBox(height: 24),
+          _section('指標'),
+          Card(
+            child: ListTile(
+              leading: const Icon(Icons.tune, color: AppTheme.accent),
+              title: const Text('技術指標參數'),
+              subtitle: const Text(
+                '自訂 MA / RSI / KD / MACD / 布林通道週期',
+                style: TextStyle(fontSize: 11),
+              ),
+              trailing: const Icon(Icons.chevron_right,
+                  color: AppTheme.textSecondary),
+              onTap: () => Navigator.of(context).push(
+                MaterialPageRoute(
+                  builder: (_) => const IndicatorSettingsPage(),
+                ),
               ),
             ),
           ),
@@ -592,11 +669,11 @@ class _TokenStatusBadge extends ConsumerWidget {
               ],
             );
           case TokenValidity.valid:
-            return const Row(
+            return Row(
               children: [
                 Icon(Icons.check_circle,
                     size: 14, color: AppTheme.bearish),
-                SizedBox(width: 6),
+                const SizedBox(width: 6),
                 Text(
                   'Token 驗證通過',
                   style: TextStyle(
@@ -609,7 +686,7 @@ class _TokenStatusBadge extends ConsumerWidget {
           case TokenValidity.invalid:
             return Row(
               children: [
-                const Icon(Icons.error,
+                Icon(Icons.error,
                     size: 14, color: AppTheme.bullish),
                 const SizedBox(width: 6),
                 Expanded(
@@ -617,7 +694,7 @@ class _TokenStatusBadge extends ConsumerWidget {
                     s.errorMessage == null
                         ? 'Token 驗證失敗'
                         : 'Token 驗證失敗：${AppError.from(Exception(s.errorMessage!)).userMessage}',
-                    style: const TextStyle(
+                    style: TextStyle(
                       color: AppTheme.bullish,
                       fontSize: 11,
                       fontWeight: FontWeight.w600,

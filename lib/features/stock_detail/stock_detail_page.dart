@@ -11,16 +11,20 @@ import 'widgets/diagnosis_panel.dart';
 import 'widgets/indicator_chart.dart';
 import 'widgets/institutional_card.dart';
 import 'widgets/chart_controls.dart';
+import 'widgets/capital_changes_card.dart';
 import 'widgets/data_sources_footer.dart';
 import 'widgets/dividend_card.dart';
 import 'widgets/fundamental_card.dart';
 import 'widgets/intraday_chart.dart';
 import 'widgets/kline_chart.dart';
 import 'widgets/order_book_card.dart';
+import 'widgets/pattern_card.dart';
 import 'widgets/price_header.dart';
 import 'widgets/range_52w.dart';
 import 'widgets/signal_card.dart';
+import 'widgets/trades_card.dart';
 import 'widgets/volatility_card.dart';
+import 'widgets/volumes_card.dart';
 
 class StockDetailPage extends ConsumerStatefulWidget {
   final String symbol;
@@ -59,7 +63,9 @@ class _StockDetailPageState extends ConsumerState<StockDetailPage> {
     final statsAsync = ref.watch(historicalStatsProvider(symbol));
     final orderBookAsync = ref.watch(orderBookProvider(symbol));
     final dividendsAsync = ref.watch(dividendsProvider(symbol));
+    final capitalChangesAsync = ref.watch(capitalChangesProvider(symbol));
     final fundamentalAsync = ref.watch(fundamentalProvider(symbol));
+    final indicatorPrefs = ref.watch(indicatorPrefsProvider);
     final diagnosis = ref.watch(diagnosisProvider(symbol));
 
     return Scaffold(
@@ -199,6 +205,7 @@ class _StockDetailPageState extends ConsumerState<StockDetailPage> {
                             const SizedBox(height: 6),
                             KLineChart(
                               candles: shown,
+                              prefs: indicatorPrefs,
                               indexCandles:
                                   indexAsync?.asData?.value,
                               onHover: (i) => setState(
@@ -207,6 +214,7 @@ class _StockDetailPageState extends ConsumerState<StockDetailPage> {
                             const SizedBox(height: 16),
                             IndicatorChart(
                               candles: shown,
+                              prefs: indicatorPrefs,
                               highlightIndex: _crosshairIndex,
                             ),
                           ],
@@ -223,6 +231,11 @@ class _StockDetailPageState extends ConsumerState<StockDetailPage> {
               data: (c) => SignalCard(report: SignalAnalyser.analyse(c)),
               orElse: () => const SizedBox.shrink(),
             ),
+            // K 線型態
+            candlesAsync.maybeWhen(
+              data: (c) => PatternCard(candles: c),
+              orElse: () => const SizedBox.shrink(),
+            ),
             // 波動度
             candlesAsync.maybeWhen(
               data: (c) =>
@@ -235,6 +248,13 @@ class _StockDetailPageState extends ConsumerState<StockDetailPage> {
                   f == null ? const SizedBox.shrink() : FundamentalCard(snapshot: f),
               orElse: () => const SizedBox.shrink(),
             ),
+            // 股本變動 / 減資
+            capitalChangesAsync.maybeWhen(
+              data: (list) => list.isEmpty
+                  ? const SizedBox.shrink()
+                  : CapitalChangesCard(changes: list),
+              orElse: () => const SizedBox.shrink(),
+            ),
             // 除權息
             dividendsAsync.maybeWhen(
               data: (list) => DividendCard(
@@ -244,6 +264,11 @@ class _StockDetailPageState extends ConsumerState<StockDetailPage> {
               ),
               orElse: () => const SizedBox.shrink(),
             ),
+            // 逐筆成交 + 分價量 (僅當日 tab 顯示，避免擠壓日 K 頁面)
+            if (_tab == DetailTab.intraday) ...[
+              TradesCard(symbol: symbol),
+              VolumesCard(symbol: symbol),
+            ],
             // 三大法人
             institutionalAsync.when(
               data: (s) => InstitutionalCard(snapshot: s),

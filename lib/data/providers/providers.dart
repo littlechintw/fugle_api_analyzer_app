@@ -6,13 +6,16 @@ import '../models/api_log.dart';
 import '../models/candle.dart';
 import '../models/stock_quote.dart';
 import '../models/watchlist_item.dart';
+import '../models/capital_change.dart';
 import '../models/dividend.dart';
 import '../models/fundamental.dart';
 import '../models/historical_stats.dart';
 import '../models/institutional_flow.dart';
 import '../models/intraday_candle.dart';
+import '../models/intraday_trade.dart';
 import '../models/market_mover.dart';
 import '../models/order_book.dart';
+import '../models/price_volume.dart';
 import '../models/ticker.dart';
 import '../services/fugle_api_client.dart';
 import '../services/twse_api_client.dart';
@@ -26,6 +29,7 @@ import 'background_refresh_provider.dart';
 import 'biometric_provider.dart';
 import 'chart_options_provider.dart';
 import 'holding_provider.dart';
+import 'indicator_prefs_provider.dart';
 import 'network_activity_provider.dart';
 import 'price_alert_provider.dart';
 import 'trade_color_provider.dart';
@@ -49,6 +53,8 @@ export 'background_refresh_provider.dart'
         BackgroundIntervalMeta;
 export 'biometric_provider.dart' show biometricProvider, BiometricState;
 export 'holding_provider.dart' show holdingsProvider;
+export 'indicator_prefs_provider.dart'
+    show indicatorPrefsProvider, IndicatorPrefs;
 export 'price_alert_provider.dart' show priceAlertsProvider;
 export 'trade_color_provider.dart' show tradeColorModeProvider;
 export 'watchlist_group_provider.dart'
@@ -356,6 +362,26 @@ final dividendsProvider =
   return all.where((d) => d.symbol == symbol).toList();
 });
 
+/// 資本變動 (整批近 5 年)
+final _capitalChangesBundleProvider =
+    FutureProvider<List<CapitalChange>>((ref) async {
+  final api = ref.watch(fugleApiClientProvider);
+  final now = DateTime.now();
+  final from = DateTime(now.year - 5, 1, 1);
+  final to = DateTime(now.year + 1, 1, 1);
+  final raw = await api.capitalChanges(from: from, to: to);
+  return raw.map(CapitalChange.fromFugle).toList();
+});
+
+final capitalChangesProvider =
+    FutureProvider.family<List<CapitalChange>, String>((ref, symbol) async {
+  final all = await ref.watch(_capitalChangesBundleProvider.future);
+  return all.where((c) => c.symbol == symbol).toList()
+    ..sort((a, b) =>
+        (b.resumeDate ?? b.haltDate ?? DateTime.now()).compareTo(
+            a.resumeDate ?? a.haltDate ?? DateTime.now()));
+});
+
 /// 52 週統計 — 一日內快取 (家族 in-memory)
 final historicalStatsProvider =
     FutureProvider.family<HistoricalStats, String>((ref, symbol) async {
@@ -383,6 +409,24 @@ class CompareIndexNotifier extends Notifier<bool> {
 
 final compareIndexProvider =
     NotifierProvider<CompareIndexNotifier, bool>(CompareIndexNotifier.new);
+
+/// 分價量表
+final intradayVolumesProvider =
+    FutureProvider.family<List<PriceVolume>, String>((ref, symbol) async {
+  final api = ref.watch(fugleApiClientProvider);
+  final raw = await api.intradayVolumes(symbol);
+  return raw.map(PriceVolume.fromFugle).toList()
+    ..sort((a, b) => b.price.compareTo(a.price));
+});
+
+/// 逐筆成交 (近 100 筆) — 每次打 API
+final intradayTradesProvider =
+    FutureProvider.family<List<IntradayTrade>, String>(
+        (ref, symbol) async {
+  final api = ref.watch(fugleApiClientProvider);
+  final raw = await api.intradayTrades(symbol, limit: 100);
+  return raw.map(IntradayTrade.fromFugle).toList();
+});
 
 /// 當日 1 分鐘 K - 不快取，每次重新打 (盤中會持續更新)
 final intradayCandlesProvider =

@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../../core/utils/formatters.dart';
 import '../../../data/models/candle.dart';
+import '../../../data/providers/indicator_prefs_provider.dart';
 import '../../../indicators/indicators.dart';
 import 'indicator_info.dart';
 
@@ -14,24 +15,24 @@ class KLineChart extends StatefulWidget {
   final List<Candle> candles;
   final double height;
   final void Function(int? index)? onHover;
-
-  /// 大盤指數對比 K (若提供，會疊加標準化後的折線)
   final List<Candle>? indexCandles;
+  final IndicatorPrefs prefs;
 
   const KLineChart({
     super.key,
     required this.candles,
+    required this.prefs,
     this.onHover,
     this.height = 300,
     this.indexCandles,
   });
 
-  static const _maPeriods = [5, 10, 20, 60];
   static const _maColors = [
     Color(0xFFFFD166),
     Color(0xFF06D6A0),
     Color(0xFF118AB2),
     Color(0xFFEF476F),
+    Color(0xFF8E9DFF),
   ];
 
   @override
@@ -83,9 +84,15 @@ class _KLineChartState extends State<KLineChart> {
 
     final candles = widget.candles;
     final maSeries = [
-      for (final p in KLineChart._maPeriods) Indicators.sma(candles, p),
+      for (final p in widget.prefs.maPeriods) Indicators.sma(candles, p),
     ];
-    final bollinger = _showBollinger ? Indicators.bollinger(candles) : null;
+    final bollinger = _showBollinger
+        ? Indicators.bollinger(
+            candles,
+            period: widget.prefs.bollingerPeriod,
+            k: widget.prefs.bollingerStdDev,
+          )
+        : null;
 
     final allHighs = [
       ...candles.map((c) => c.high),
@@ -256,7 +263,7 @@ class _KLineChartState extends State<KLineChart> {
         ),
         const SizedBox(height: 6),
         _MaLegend(
-          periods: KLineChart._maPeriods,
+          periods: widget.prefs.maPeriods,
           colors: KLineChart._maColors,
         ),
       ],

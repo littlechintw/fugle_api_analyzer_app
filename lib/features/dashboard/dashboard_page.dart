@@ -446,9 +446,9 @@ class _DashboardPageState extends ConsumerState<DashboardPage> {
                 ),
               const Divider(height: 1),
               ListTile(
-                leading: const Icon(Icons.delete_outline,
+                leading: Icon(Icons.delete_outline,
                     color: AppTheme.bullish),
-                title: const Text('從自選股移除',
+                title: Text('從自選股移除',
                     style: TextStyle(color: AppTheme.bullish)),
                 onTap: () {
                   Navigator.pop(ctx);

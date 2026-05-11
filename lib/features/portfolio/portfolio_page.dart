@@ -486,9 +486,9 @@ class _HoldingFormSheetState extends ConsumerState<_HoldingFormSheet> {
               children: [
                 if (isEdit)
                   TextButton.icon(
-                    icon: const Icon(Icons.delete_outline,
+                    icon: Icon(Icons.delete_outline,
                         color: AppTheme.bullish),
-                    label: const Text('刪除',
+                    label: Text('刪除',
                         style:
                             TextStyle(color: AppTheme.bullish)),
                     onPressed: _delete,

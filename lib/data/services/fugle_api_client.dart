@@ -56,11 +56,14 @@ class FugleApiClient {
   /// 歷史 K 線（candles）
   ///
   /// [from] / [to] 為 yyyy-MM-dd，[timeframe] 可填 D / W / M / 1 / 5 / 60 ...
+  /// [adjusted] = false 預設取「交易所實際成交價」(未還原權值)，與當日新聞、
+  /// 五檔報價、即時報價的數字一致。設為 true 才會用「還原權值」歷史價。
   Future<List<Map<String, dynamic>>> historicalCandles(
     String symbol, {
     required String from,
     required String to,
     String timeframe = 'D',
+    bool adjusted = false,
   }) async {
     final opts = await _authOptions();
     final resp = await _dio.get<Map<String, dynamic>>(
@@ -70,6 +73,7 @@ class FugleApiClient {
         'to': to,
         'timeframe': timeframe,
         'sort': 'asc',
+        'adjusted': adjusted ? 'true' : 'false',
       },
       options: opts,
     );
@@ -88,6 +92,38 @@ class FugleApiClient {
     final resp = await _dio.get<Map<String, dynamic>>(
       '/stock/intraday/candles/$symbol',
       queryParameters: {'timeframe': timeframe.toString()},
+      options: opts,
+    );
+    final list = (resp.data?['data'] as List?) ?? const [];
+    return list.cast<Map<String, dynamic>>();
+  }
+
+  /// 逐筆成交明細
+  Future<List<Map<String, dynamic>>> intradayTrades(
+    String symbol, {
+    int limit = 100,
+    int offset = 0,
+    String sort = 'desc',
+  }) async {
+    final opts = await _authOptions();
+    final resp = await _dio.get<Map<String, dynamic>>(
+      '/stock/intraday/trades/$symbol',
+      queryParameters: {
+        'limit': limit.toString(),
+        'offset': offset.toString(),
+        'sort': sort,
+      },
+      options: opts,
+    );
+    final list = (resp.data?['data'] as List?) ?? const [];
+    return list.cast<Map<String, dynamic>>();
+  }
+
+  /// 分價量表
+  Future<List<Map<String, dynamic>>> intradayVolumes(String symbol) async {
+    final opts = await _authOptions();
+    final resp = await _dio.get<Map<String, dynamic>>(
+      '/stock/intraday/volumes/$symbol',
       options: opts,
     );
     final list = (resp.data?['data'] as List?) ?? const [];
@@ -123,6 +159,24 @@ class FugleApiClient {
     final resp = await _dio.get<Map<String, dynamic>>(
       '/stock/snapshot/actives/$market',
       queryParameters: {'trade': trade},
+      options: opts,
+    );
+    final list = (resp.data?['data'] as List?) ?? const [];
+    return list.cast<Map<String, dynamic>>();
+  }
+
+  /// 資本變動 (減資 / ETF 分割 / 面額變更)
+  Future<List<Map<String, dynamic>>> capitalChanges({
+    required DateTime from,
+    required DateTime to,
+  }) async {
+    final opts = await _authOptions();
+    final resp = await _dio.get<Map<String, dynamic>>(
+      '/stock/corporate-actions/capital-changes',
+      queryParameters: {
+        'start_date': _dateStr(from),
+        'end_date': _dateStr(to),
+      },
       options: opts,
     );
     final list = (resp.data?['data'] as List?) ?? const [];

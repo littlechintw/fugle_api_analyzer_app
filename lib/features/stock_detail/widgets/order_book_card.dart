@@ -194,7 +194,7 @@ class _BidAskBar extends StatelessWidget {
           children: [
             Text(
               '內盤 ${(bidPct * 100).toStringAsFixed(1)}%',
-              style: const TextStyle(
+              style: TextStyle(
                 color: AppTheme.bearish,
                 fontSize: 11,
                 fontWeight: FontWeight.w600,
@@ -212,7 +212,7 @@ class _BidAskBar extends StatelessWidget {
             const Spacer(),
             Text(
               '外盤 ${(askPct * 100).toStringAsFixed(1)}%',
-              style: const TextStyle(
+              style: TextStyle(
                 color: AppTheme.bullish,
                 fontSize: 11,
                 fontWeight: FontWeight.w600,

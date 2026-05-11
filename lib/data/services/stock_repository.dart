@@ -68,8 +68,10 @@ class StockRepository {
       }
     }
 
-    final to = _today();
-    final from = to.subtract(
+    final today = _today();
+    // 把 to 設成明天，避免 Fugle 把 `to=today` 解讀成「不含今天」
+    final to = today.add(const Duration(days: 1));
+    final from = today.subtract(
       Duration(days: _windowDays(days: days, timeframe: timeframe)),
     );
     final raw = await _api.historicalCandles(
@@ -77,6 +79,7 @@ class StockRepository {
       from: _dateFmt.format(from),
       to: _dateFmt.format(to),
       timeframe: timeframe,
+      adjusted: false,
     );
     final fresh = raw.map(Candle.fromFugleHistorical).toList()
       ..sort((a, b) => a.date.compareTo(b.date));

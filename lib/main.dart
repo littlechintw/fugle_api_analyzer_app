@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'app.dart';
+import 'data/services/background_service.dart';
 import 'data/services/hive_service.dart';
 import 'data/services/notification_service.dart';
 
@@ -14,6 +15,7 @@ Future<void> main() async {
   ]);
   await HiveService.instance.init();
   await NotificationService.instance.init();
+  await BackgroundScheduler.instance.init();
 
   runApp(const ProviderScope(child: FugleApp()));
 }

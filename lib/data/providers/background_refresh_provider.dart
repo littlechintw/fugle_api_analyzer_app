@@ -1,5 +1,6 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../services/background_service.dart';
 import '../services/hive_service.dart';
 
 enum BackgroundInterval { off, m15, m30, h1, h3 }
@@ -69,12 +70,13 @@ class BackgroundRefreshNotifier
   void setInterval(BackgroundInterval interval) {
     HiveService.instance.settings.put(_intervalKey, interval.name);
     state = state.copyWith(interval: interval);
-    // TODO: 註冊 / 取消 workmanager / BGTaskScheduler 排程
+    BackgroundScheduler.instance.apply(state);
   }
 
   void setWifiOnly(bool v) {
     HiveService.instance.settings.put(_wifiKey, v);
     state = state.copyWith(wifiOnly: v);
+    BackgroundScheduler.instance.apply(state);
   }
 }
 
