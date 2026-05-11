@@ -10,6 +10,7 @@ import '../services/hive_service.dart';
 class WatchlistGroupNotifier extends Notifier<List<WatchlistGroup>> {
   static const _assignmentKey = 'watchlist_group_assignment';
   static const _selectedKey = 'watchlist_selected_group';
+  static int _idCounter = 0;
 
   @override
   List<WatchlistGroup> build() {
@@ -21,7 +22,9 @@ class WatchlistGroupNotifier extends Notifier<List<WatchlistGroup>> {
 
   /// 新增群組
   void create(String name, int colorValue) {
-    final id = 'g_${DateTime.now().millisecondsSinceEpoch}';
+    // 加上自增計數器避免同毫秒多次呼叫產生重複 id
+    final id =
+        'g_${DateTime.now().microsecondsSinceEpoch}_${_idCounter++}';
     final order = state.isEmpty
         ? 0
         : state.map((g) => g.sortOrder).reduce((a, b) => a > b ? a : b) + 1;

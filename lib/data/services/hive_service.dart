@@ -33,9 +33,6 @@ class HiveService {
     await Hive.initFlutter();
 
     // 註冊 TypeAdapters
-    if (!Hive.isAdapterRegistered(10)) {
-      Hive.registerAdapter(CandleListAdapter());
-    }
     if (!Hive.isAdapterRegistered(11)) {
       Hive.registerAdapter(StockQuoteAdapter());
     }

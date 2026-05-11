@@ -1,5 +1,3 @@
-import 'package:hive/hive.dart';
-
 /// 日 K 蠟燭資料 (OHLCV)
 class Candle {
   final DateTime date;
@@ -51,37 +49,3 @@ class Candle {
   }
 }
 
-class CandleListAdapter extends TypeAdapter<List<Candle>> {
-  @override
-  final int typeId = 10;
-
-  @override
-  List<Candle> read(BinaryReader reader) {
-    final length = reader.readUint32();
-    final list = <Candle>[];
-    for (var i = 0; i < length; i++) {
-      list.add(Candle(
-        date: DateTime.fromMillisecondsSinceEpoch(reader.readInt()),
-        open: reader.readDouble(),
-        high: reader.readDouble(),
-        low: reader.readDouble(),
-        close: reader.readDouble(),
-        volume: reader.readDouble(),
-      ));
-    }
-    return list;
-  }
-
-  @override
-  void write(BinaryWriter writer, List<Candle> obj) {
-    writer.writeUint32(obj.length);
-    for (final c in obj) {
-      writer.writeInt(c.date.millisecondsSinceEpoch);
-      writer.writeDouble(c.open);
-      writer.writeDouble(c.high);
-      writer.writeDouble(c.low);
-      writer.writeDouble(c.close);
-      writer.writeDouble(c.volume);
-    }
-  }
-}

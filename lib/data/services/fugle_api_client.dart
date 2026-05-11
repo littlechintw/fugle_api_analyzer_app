@@ -1,4 +1,5 @@
 import 'package:dio/dio.dart';
+import 'package:flutter/foundation.dart';
 
 import 'api_log_interceptor.dart';
 import 'hive_service.dart';
@@ -13,6 +14,10 @@ class FugleApiClient {
   final SecureStorageService _storage;
 
   FugleApiClient._(this._dio, this._storage);
+
+  /// 僅供測試 — 用來替換內部 Dio 的 httpClientAdapter
+  @visibleForTesting
+  Dio get dio => _dio;
 
   factory FugleApiClient.create({
     SecureStorageService? storage,
