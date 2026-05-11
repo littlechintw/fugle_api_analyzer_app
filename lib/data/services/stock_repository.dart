@@ -44,39 +44,62 @@ class StockRepository {
 
   // ============== Candles (歷史日 K) ==============
 
-  /// 取得近 [days] 日 K 線；若本地當日資料完整則直接回傳。
+  /// 取得近 [days] 個 K 棒；[timeframe] 預設 D（日 K），可改 W、M
+  ///
+  /// 快取策略：日 K 走 Hive 快取 (key = symbol)；週 / 月 K 因頻率低，
+  /// 每次直接 fetch 不快取（也避免 key 跟日 K 衝突）。
   Future<List<Candle>> getDailyCandles(
     String symbol, {
     int days = 180,
+    String timeframe = 'D',
     bool forceRefresh = false,
   }) async {
-    final cached = _readCachedCandles(symbol);
-    final today = _today();
-
-    final hasFreshCache = cached.isNotEmpty &&
-        _isSameDay(cached.last.date, today) &&
-        cached.length >= days * 0.6;
-
-    if (!forceRefresh && hasFreshCache) {
-      return cached.length > days
-          ? cached.sublist(cached.length - days)
-          : cached;
+    final isDaily = timeframe == 'D';
+    if (isDaily) {
+      final cached = _readCachedCandles(symbol);
+      final today = _today();
+      final hasFreshCache = cached.isNotEmpty &&
+          _isSameDay(cached.last.date, today) &&
+          cached.length >= days * 0.6;
+      if (!forceRefresh && hasFreshCache) {
+        return cached.length > days
+            ? cached.sublist(cached.length - days)
+            : cached;
+      }
     }
 
-    final to = today;
-    final from = to.subtract(Duration(days: (days * 1.6).round() + 10));
+    final to = _today();
+    final from = to.subtract(
+      Duration(days: _windowDays(days: days, timeframe: timeframe)),
+    );
     final raw = await _api.historicalCandles(
       symbol,
       from: _dateFmt.format(from),
       to: _dateFmt.format(to),
+      timeframe: timeframe,
     );
     final fresh = raw.map(Candle.fromFugleHistorical).toList()
       ..sort((a, b) => a.date.compareTo(b.date));
 
-    await _hive.candles.put(symbol, fresh.map((c) => c.toMap()).toList());
+    if (isDaily) {
+      await _hive.candles.put(symbol, fresh.map((c) => c.toMap()).toList());
+    }
     return fresh.length > days
         ? fresh.sublist(fresh.length - days)
         : fresh;
+  }
+
+  /// 不同週期需要往回拉的「日曆天數」估算
+  static int _windowDays({required int days, required String timeframe}) {
+    switch (timeframe) {
+      case 'W':
+        return days * 7 + 14;
+      case 'M':
+        return days * 31 + 30;
+      case 'D':
+      default:
+        return (days * 1.6).round() + 10;
+    }
   }
 
   List<Candle> _readCachedCandles(String symbol) {
