@@ -320,6 +320,35 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
             ),
           ),
           const SizedBox(height: 24),
+          _section('背景更新'),
+          _BackgroundRefreshCard(),
+          const SizedBox(height: 24),
+          _section('安全'),
+          Card(
+            child: SwitchListTile(
+              secondary: const Icon(Icons.fingerprint,
+                  color: AppTheme.accent),
+              title: const Text('啟用生物識別解鎖'),
+              subtitle: const Text(
+                'App 啟動時要求 FaceID / 指紋 / 裝置密碼',
+                style: TextStyle(fontSize: 11),
+              ),
+              value: ref.watch(biometricProvider).enabled,
+              onChanged: (v) async {
+                final ok = await ref
+                    .read(biometricProvider.notifier)
+                    .setEnabled(v);
+                if (!ok && context.mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(
+                      content: Text('裝置不支援生物識別，或驗證失敗'),
+                    ),
+                  );
+                }
+              },
+            ),
+          ),
+          const SizedBox(height: 24),
           _section('法律與隱私'),
           Card(
             child: Column(
@@ -401,6 +430,115 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
         ),
       );
 
+}
+
+class _BackgroundRefreshCard extends ConsumerWidget {
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final s = ref.watch(backgroundRefreshProvider);
+    final watchlistCount = ref.watch(watchlistProvider).length;
+    final daily = s.interval.estimatedDailyCalls(watchlistCount);
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(16, 14, 16, 14),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text(
+              '背景自動更新自選股報價',
+              style: TextStyle(
+                color: AppTheme.textPrimary,
+                fontSize: 13,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+            const SizedBox(height: 4),
+            const Text(
+              'App 關閉時依設定頻率拉新報價，搭配「價格警示」可在到價時通知。\n'
+              '會增加 API 用量與耗電，預設為關閉。',
+              style: TextStyle(
+                color: AppTheme.textSecondary,
+                fontSize: 11,
+                height: 1.5,
+              ),
+            ),
+            const SizedBox(height: 12),
+            DropdownButtonFormField<BackgroundInterval>(
+              value: s.interval,
+              decoration: const InputDecoration(
+                labelText: '更新頻率',
+                isDense: true,
+              ),
+              items: [
+                for (final i in BackgroundInterval.values)
+                  DropdownMenuItem(value: i, child: Text(i.label)),
+              ],
+              onChanged: (v) {
+                if (v != null) {
+                  ref
+                      .read(backgroundRefreshProvider.notifier)
+                      .setInterval(v);
+                }
+              },
+            ),
+            const SizedBox(height: 8),
+            SwitchListTile(
+              dense: true,
+              contentPadding: EdgeInsets.zero,
+              title: const Text('僅在 Wi-Fi 連線時刷新'),
+              subtitle: const Text(
+                '避免消耗行動數據',
+                style: TextStyle(fontSize: 11),
+              ),
+              value: s.wifiOnly,
+              onChanged: (v) => ref
+                  .read(backgroundRefreshProvider.notifier)
+                  .setWifiOnly(v),
+            ),
+            if (s.enabled) ...[
+              const SizedBox(height: 8),
+              Container(
+                padding: const EdgeInsets.fromLTRB(10, 8, 10, 8),
+                decoration: BoxDecoration(
+                  color: AppTheme.accent.withValues(alpha: 0.08),
+                  borderRadius: BorderRadius.circular(6),
+                  border: Border.all(
+                    color: AppTheme.accent.withValues(alpha: 0.3),
+                  ),
+                ),
+                child: Row(
+                  children: [
+                    const Icon(Icons.bolt,
+                        size: 14, color: AppTheme.accent),
+                    const SizedBox(width: 4),
+                    Expanded(
+                      child: Text(
+                        '預估每日約 $daily 次 API 呼叫 '
+                        '(${watchlistCount} 檔自選股)',
+                        style: const TextStyle(
+                          color: AppTheme.accent,
+                          fontSize: 11,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+            const SizedBox(height: 6),
+            const Text(
+              '※ 目前 Android 優先實作；iOS 因系統限制可能無法精確按頻率執行。',
+              style: TextStyle(
+                color: AppTheme.textSecondary,
+                fontSize: 10,
+                fontStyle: FontStyle.italic,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
 }
 
 class _TokenStatusBadge extends ConsumerWidget {

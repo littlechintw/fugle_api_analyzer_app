@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'core/theme/app_theme.dart';
+import 'core/widgets/biometric_gate.dart';
 import 'data/providers/providers.dart';
 import 'features/dashboard/dashboard_page.dart';
 import 'features/onboarding/onboarding_page.dart';
@@ -26,7 +27,7 @@ class _FugleAppState extends ConsumerState<FugleApp> {
       darkTheme: AppTheme.dark,
       themeMode: ThemeMode.dark,
       home: _onboardingDone
-          ? const DashboardPage()
+          ? const BiometricGate(child: DashboardPage())
           : OnboardingPage(
               onComplete: () => setState(() => _onboardingDone = true),
             ),

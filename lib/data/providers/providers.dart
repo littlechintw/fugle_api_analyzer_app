@@ -19,9 +19,13 @@ import '../services/twse_api_client.dart';
 import '../services/hive_service.dart';
 import '../services/secure_storage_service.dart';
 import '../services/stock_repository.dart';
+import '../services/fugle_websocket_service.dart';
 import '../services/ticker_catalog_service.dart';
 import '../services/twse_fundamental_client.dart';
+import 'background_refresh_provider.dart';
+import 'biometric_provider.dart';
 import 'chart_options_provider.dart';
+import 'holding_provider.dart';
 import 'network_activity_provider.dart';
 import 'price_alert_provider.dart';
 import 'trade_color_provider.dart';
@@ -37,6 +41,14 @@ export 'chart_options_provider.dart'
         ChartTimeframeMeta,
         ChartRangeMeta;
 export 'network_activity_provider.dart' show networkActivityProvider;
+export 'background_refresh_provider.dart'
+    show
+        backgroundRefreshProvider,
+        BackgroundRefreshSettings,
+        BackgroundInterval,
+        BackgroundIntervalMeta;
+export 'biometric_provider.dart' show biometricProvider, BiometricState;
+export 'holding_provider.dart' show holdingsProvider;
 export 'price_alert_provider.dart' show priceAlertsProvider;
 export 'trade_color_provider.dart' show tradeColorModeProvider;
 export 'watchlist_group_provider.dart'
@@ -300,6 +312,21 @@ final candlesProvider =
         timeframe: opts.timeframe.apiCode,
         days: opts.range.displayBarsFor(opts.timeframe),
       );
+});
+
+/// WebSocket 即時報價 — 訂閱 aggregates channel (含成交價、五檔、累計量)
+///
+/// 個股頁 watch 時自動 subscribe；離開時 autoDispose 觸發 unsubscribe。
+final realtimeQuoteProvider = StreamProvider.autoDispose
+    .family<StockQuote, String>((ref, symbol) async* {
+  final ws = FugleWebSocketService.instance;
+  final stream = await ws.subscribe('aggregates', symbol);
+  ref.onDispose(() => ws.unsubscribe('aggregates', symbol));
+
+  // 把 WS 推送的 Map 轉成 StockQuote
+  await for (final raw in stream) {
+    yield StockQuote.fromFugleQuote({'symbol': symbol, ...raw});
+  }
 });
 
 /// 五檔買賣盤 — 不快取，每次直接打 intraday/quote
