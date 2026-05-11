@@ -6,6 +6,7 @@ import '../../core/theme/app_theme.dart';
 import '../../core/utils/formatters.dart';
 import '../../data/providers/providers.dart';
 import '../../data/providers/trade_color_provider.dart';
+import 'legal_page.dart';
 import 'watchlist_backup.dart';
 
 class SettingsPage extends ConsumerStatefulWidget {
@@ -316,6 +317,45 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
                   ),
                 ],
               ),
+            ),
+          ),
+          const SizedBox(height: 24),
+          _section('法律與隱私'),
+          Card(
+            child: Column(
+              children: [
+                ListTile(
+                  leading: const Icon(Icons.privacy_tip_outlined,
+                      color: AppTheme.textSecondary),
+                  title: const Text('隱私政策'),
+                  trailing: const Icon(Icons.chevron_right,
+                      color: AppTheme.textSecondary),
+                  onTap: () => Navigator.of(context).push(
+                    MaterialPageRoute(
+                      builder: (_) => const LegalPage(
+                        title: '隱私政策',
+                        body: privacyPolicyText,
+                      ),
+                    ),
+                  ),
+                ),
+                const Divider(height: 1),
+                ListTile(
+                  leading: const Icon(Icons.gavel_outlined,
+                      color: AppTheme.textSecondary),
+                  title: const Text('使用條款'),
+                  trailing: const Icon(Icons.chevron_right,
+                      color: AppTheme.textSecondary),
+                  onTap: () => Navigator.of(context).push(
+                    MaterialPageRoute(
+                      builder: (_) => const LegalPage(
+                        title: '使用條款',
+                        body: termsOfServiceText,
+                      ),
+                    ),
+                  ),
+                ),
+              ],
             ),
           ),
           const SizedBox(height: 24),
